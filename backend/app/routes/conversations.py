@@ -7,7 +7,7 @@ from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
-from app.models import Conversation
+from app.models import Conversation, InferenceLog
 
 router = APIRouter(prefix="/conversations", tags=["conversations"])
 
@@ -98,4 +98,21 @@ async def delete_conversation(
     await session.delete(db_conv)
     await session.commit()
     return None
+
+
+# 5. Get the latest telemetry log for a specific conversation session
+@router.get("/{id}/telemetry", response_model=Optional[InferenceLog])
+async def get_latest_telemetry(
+    id: uuid.UUID,
+    session: AsyncSession = Depends(get_session)
+):
+    statement = (
+        select(InferenceLog)
+        .where(InferenceLog.conversation_id == id)
+        .order_by(InferenceLog.created_at.desc())
+        .limit(1)
+    )
+    results = await session.execute(statement)
+    return results.scalar_one_or_none()
+
 

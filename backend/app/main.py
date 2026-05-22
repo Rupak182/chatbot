@@ -6,16 +6,30 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+from sqlmodel import SQLModel
 
 from app.config import settings
+from app.db import engine
+# Import models to register SQLModel metadata
+from app.models import Conversation, Message, InferenceLog
 from app.routes.conversations import router as conversations_router
 from app.routes.stream import router as stream_router
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Auto-initialize database tables asynchronously on startup
+    async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
+    print("Database tables initialized successfully.")
+    yield
 
 # Initialize the main FastAPI Application
 app = FastAPI(
     title=" LLM Inference Telemetry Backend",
     description="LLM proxy and inference logging system.",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # Configure CORS Middleware

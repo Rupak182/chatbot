@@ -83,16 +83,8 @@ async def save_stream_results(
                 db_user_message.tokens = prompt_tokens
                 session.add(db_user_message)
 
-            # 4. Calculate exact dollar costs using LiteLLM models database
-            try:
-                cost_usd_raw = litellm.completion_cost(
-                    model=model_name,
-                    prompt_tokens=prompt_tokens,
-                    completion_tokens=completion_tokens
-                )
-                cost_usd = Decimal(str(cost_usd_raw)) if cost_usd_raw else Decimal("0.0000000000")
-            except Exception:
-                cost_usd = Decimal("0.0000000000")
+            # 4. Set default zero cost (cost tracking disabled)
+            cost_usd = Decimal("0.0000000000")
 
             # 4. Save InferenceLog Telemetry
             log = InferenceLog(
@@ -143,22 +135,27 @@ async def chat_stream(
     from datetime import datetime, timezone
     now_naive = datetime.now(timezone.utc).replace(tzinfo=None)
 
+    # 3. Extract the User's prompt to name the conversation dynamically
+    user_prompt = payload.messages[-1].content
+
     if not db_conv:
-        # Auto-create conversation with the client's generated UUID
+        # Auto-create conversation with the client's generated UUID and dynamic title
+        conv_title = user_prompt[:15] + "..." if len(user_prompt) > 15 else user_prompt
         db_conv = Conversation(
             id=payload.conversation_id,
-            title="New Conversation",
+            title=conv_title,
             model=payload.model or "gemini-2.5-flash",
             created_at=now_naive,
             updated_at=now_naive
         )
         session.add(db_conv)
     else:
+        # If the conversation is currently named "New Conversation", rename it to the user's first prompt slice!
+        if db_conv.title == "New Conversation":
+            db_conv.title = user_prompt[:15] + "..." if len(user_prompt) > 15 else user_prompt
         db_conv.updated_at = now_naive
         session.add(db_conv)
 
-    # 3. Extract and insert the User's prompt immediately
-    user_prompt = payload.messages[-1].content
     user_message = Message(
         conversation_id=payload.conversation_id,
         role="user",
