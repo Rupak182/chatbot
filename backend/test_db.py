@@ -9,11 +9,13 @@ async def main():
     print("==================================================")
     
     # 1. Initialize Tables Asynchronously
-    print("\n1. Connecting and creating tables in Neon...")
+    print("\n1. Connecting and rebuilding tables in Neon...")
     try:
         async with engine.begin() as conn:
-            # Drop tables first to ensure a perfectly clean slate if needed
-            # (In production we keep them, but for initial verify it is great)
+            # Drop old tables first to ensure the new decimal schema is applied
+            print("Wiping old tables...")
+            await conn.run_sync(SQLModel.metadata.drop_all)
+            print("Creating new tables with high-precision fields...")
             await conn.run_sync(SQLModel.metadata.create_all)
         print("✅ Success: All PostgreSQL tables created successfully!")
     except Exception as e:
@@ -26,8 +28,7 @@ async def main():
         async with async_session() as session:
             mock_conv = Conversation(
                 title="Neon Verification Chat",
-                model="gemini-1.5-flash",
-                provider="google"
+                model="gemini-2.5-flash"
             )
             session.add(mock_conv)
             await session.commit()

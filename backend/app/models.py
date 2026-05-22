@@ -15,14 +15,16 @@ class Conversation(SQLModel, table=True):
     )
     title: str = Field(default="New Conversation")
     model: str
-    provider: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     # Cascade delete messages when conversation is deleted
     messages: List["Message"] = Relationship(
         back_populates="conversation",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+        sa_relationship_kwargs={
+            "cascade": "all, delete-orphan",
+            "lazy": "selectin"  # Eagerly loads messages in a single query to prevent N+1 and async lazy-load crashes!
+        }
     )
 
 class Message(SQLModel, table=True):
@@ -47,7 +49,10 @@ class Message(SQLModel, table=True):
     conversation: Conversation = Relationship(back_populates="messages")
     inference_logs: List["InferenceLog"] = Relationship(
         back_populates="message",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+        sa_relationship_kwargs={
+            "cascade": "all, delete-orphan",
+            "lazy": "selectin"  # Eagerly loads inference logs in a single query to prevent N+1 and async lazy-load crashes!
+        }
     )
 
 class InferenceLog(SQLModel, table=True):
@@ -69,7 +74,6 @@ class InferenceLog(SQLModel, table=True):
         foreign_key="messages.id",
         ondelete="SET NULL"
     )
-    provider: str
     model: str
     status: str  # 'success', 'error'
     latency_ms: int
@@ -79,9 +83,9 @@ class InferenceLog(SQLModel, table=True):
     
     # Financial precision for USD micro-costs
     cost_usd: Decimal = Field(
-        default=Decimal("0.000000"),
-        max_digits=12,
-        decimal_places=6
+        default=Decimal("0.0000000000"),
+        max_digits=16,
+        decimal_places=10
     )
     
     error_message: Optional[str] = Field(default=None)
