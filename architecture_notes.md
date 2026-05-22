@@ -8,20 +8,8 @@ This document outlines the telemetry ingestion pipeline, operational scaling, pe
 
 The platform utilizes a **fully non-blocking background ingestion design** to guarantee that telemetry writes never impact client streaming speeds:
 
-```
-[Browser Client] 
-     │
-     ├── 1. Streaming Prompt (POST /api/v1/chat/stream) ─────────> [FastAPI Backend]
-     │                                                                   │
-     │                                                                   ├── 2. Proxy Stream (async) ──> [LiteLLM / upstream AI]
-     │<── 3. Streaming Response Chunks (SSE Plaintext) <─────────────────┤
-     │                                                                   │
-     │                                                                   └── 4. Offload Telemetry ─────> [Background task]
-     │                                                                                                        │
-     │                                                                                                   5. Write to DB
-     │                                                                                                        │
-     │<── 6. Refresh HUD Data (GET /api/v1/conversations/{id}/telemetry) <─ [PostgreSQL Database] <───────────┘
-```
+<img width="3275" height="1954" alt="image" src="https://github.com/user-attachments/assets/78ef6568-c555-438e-8116-f6e85dd4940e" />
+
 
 1. **Pre-Save Sync**: The user submits a prompt. The FastAPI backend immediately saves the user's message to PostgreSQL to secure the foreign key ID and conversation state.
 2. **Streaming Proxy**: The backend calls LiteLLM's async streaming connector (`await litellm.acompletion(stream=True)`). SSE text chunks are forwarded directly to the client browser in real-time.
@@ -38,7 +26,7 @@ The platform utilizes a **fully non-blocking background ingestion design** to gu
 
 ---
 
-## 3. Scaling Considerations (Handling 10k+ Req/Sec)
+## 3. Scaling Considerations
 
 To scale this platform to thousands of concurrent LLM stream ingestion logs per second, the pipeline can transition to an **Event-Buffered Architecture**:
 
@@ -47,7 +35,7 @@ To scale this platform to thousands of concurrent LLM stream ingestion logs per 
 ```
 
 1. **Redis Queue Buffer**: Instead of executing active SQL queries inside background tasks, the FastAPI server pushes serialized telemetry JSON payloads straight into an in-memory **Redis queue** (`LPUSH logs:telemetry`). This takes less than a millisecond.
-2. **Decoupled Task Workers**: Independent python worker processes (running Celery or Arq) poll the queue and drain entries in bulk.
+2. **Decoupled Task Workers**: Independent python worker processes (e.g - running Celery) poll the queue and drain entries in bulk.
 3. **Database Safeguards**: Workers group entries into batches (e.g. 500 records) and execute a single bulk SQL insert transaction. This slashes database lock times and connection overhead by **95%**, protecting PostgreSQL from thread starvation.
 
 ---
