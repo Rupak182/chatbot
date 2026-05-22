@@ -77,3 +77,25 @@ async def get_conversation(
             detail="Conversation not found"
         )
     return db_conv
+
+
+# 4. Delete a conversation session (cascades and deletes all messages & logs)
+@router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_conversation(
+    id: uuid.UUID,
+    session: AsyncSession = Depends(get_session)
+):
+    statement = select(Conversation).where(Conversation.id == id)
+    results = await session.execute(statement)
+    db_conv = results.scalar_one_or_none()
+    
+    if not db_conv:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Conversation not found"
+        )
+        
+    await session.delete(db_conv)
+    await session.commit()
+    return None
+
