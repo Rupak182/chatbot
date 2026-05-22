@@ -1,0 +1,13 @@
+[project]
+name = "backend"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "asyncpg>=0.31.0",
+    "fastapi>=0.136.1",
+    "httpx>=0.28.1",
+    "litellm>=1.85.1",
+    "python-dotenv>=1.2.2",
+    "sqlmodel>=0.0.38",
+    "uvicorn>=0.47.0",
+]
