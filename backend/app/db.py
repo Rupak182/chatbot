@@ -10,7 +10,8 @@ engine = create_async_engine(
     pool_size=20,           # Keep 20 open connections to PostgreSQL
     max_overflow=10,        # Allow temporary overflow during peaks
     pool_pre_ping=True,     # Test connections before using them to prevent dropouts
-    pool_recycle=3600       # Recycle connections every 1 hour to prevent stale links
+    pool_recycle=3600,      # Recycle connections every 1 hour to prevent stale links
+    connect_args={"ssl": True}  # Explicitly enable SSL for secure cloud databases like Neon/Supabase
 )
 
 # Async Session maker with expire_on_commit=False (prevents lazy-load failures)

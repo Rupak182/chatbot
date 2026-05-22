@@ -16,8 +16,8 @@ class Conversation(SQLModel, table=True):
     title: str = Field(default="New Conversation")
     model: str
     provider: str
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     # Cascade delete messages when conversation is deleted
     messages: List["Message"] = Relationship(
@@ -41,7 +41,7 @@ class Message(SQLModel, table=True):
     role: str  # 'user', 'assistant', 'system'
     content: str
     tokens: Optional[int] = Field(default=None)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     # Relationships
     conversation: Conversation = Relationship(back_populates="messages")
@@ -86,8 +86,8 @@ class InferenceLog(SQLModel, table=True):
     
     error_message: Optional[str] = Field(default=None)
     ip_address: Optional[str] = Field(default=None)
-    request_timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    request_timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     # Relationships
     message: Optional[Message] = Relationship(back_populates="inference_logs")
