@@ -1,4 +1,6 @@
-import { Plus, Trash2, MessageSquare, Cpu } from 'lucide-react';
+import { Plus, Trash2, MessageSquare, Cpu, BarChart3 } from 'lucide-react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 interface Conversation {
   id: string;
@@ -25,6 +27,8 @@ export function Sidebar({
   loadConversation,
   deleteConversation
 }: SidebarProps) {
+  const pathname = usePathname();
+
   return (
     <aside className="w-80 border-r border-zinc-900/80 bg-[#09090b] p-4 flex flex-col justify-between shrink-0 select-none">
       <div className="flex flex-col flex-1 min-h-0">
@@ -35,6 +39,32 @@ export function Sidebar({
           <h1 className="text-lg font-bold tracking-tight text-white flex items-center gap-2">
             Chatbot <span className="text-[10px] py-0.5 px-1.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-500 font-mono">v1.0</span>
           </h1>
+        </div>
+
+        {/* Global Navigation Tabs */}
+        <div className="mt-4 flex flex-col gap-1">
+          <Link
+            href="/"
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+              pathname === '/'
+                ? 'bg-zinc-900 text-white border border-zinc-800'
+                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/30'
+            }`}
+          >
+            <MessageSquare className="h-4 w-4 shrink-0 text-cyan-400" />
+            <span>Chat Workspace</span>
+          </Link>
+          <Link
+            href="/dashboard"
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+              pathname === '/dashboard'
+                ? 'bg-zinc-900 text-white border border-zinc-800'
+                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/30'
+            }`}
+          >
+            <BarChart3 className="h-4 w-4 shrink-0 text-emerald-400" />
+            <span>Inference Analytics</span>
+          </Link>
         </div>
 
         {/* New Chat Button */}

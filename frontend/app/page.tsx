@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 
 import { Sidebar } from '@/components/dashboard/sidebar';
 import { TelemetryHUD } from '@/components/dashboard/telemetry-hud';
@@ -24,7 +25,10 @@ interface Telemetry {
   total_tokens: number;
 }
 
-export default function Home() {
+export function HomeContent() {
+  const searchParams = useSearchParams();
+  const sessionParam = searchParams.get('session');
+
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -36,10 +40,16 @@ export default function Home() {
   
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Initial Load: Fetch past chat histories from Neon PostgreSQL
+  // Initial Load: Fetch past chat histories and check for deep-linked session params from Dashboard redirection!
   useEffect(() => {
-    fetchConversations();
-  }, []);
+    const init = async () => {
+      await fetchConversations();
+      if (sessionParam) {
+        loadConversation(sessionParam);
+      }
+    };
+    init();
+  }, [sessionParam]);
 
   const fetchConversations = async () => {
     try {
@@ -372,5 +382,17 @@ export default function Home() {
       </main>
 
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={
+      <div className="flex h-screen w-screen items-center justify-center bg-[#09090b] font-mono text-xs text-zinc-500 animate-pulse">
+        Synchronizing environment...
+      </div>
+    }>
+      <HomeContent />
+    </Suspense>
   );
 }

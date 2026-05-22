@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlmodel import select
+from sqlmodel import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
@@ -60,6 +60,78 @@ async def list_conversations(
     statement = select(Conversation).order_by(Conversation.updated_at.desc())
     results = await session.execute(statement)
     return results.scalars().all()
+
+# 2.5 Get global telemetry analytics metrics (throughput, latency, and errors)
+@router.get("/analytics")
+async def get_global_analytics(
+    session: AsyncSession = Depends(get_session)
+):
+    try:
+        stmt = select(
+            func.count(InferenceLog.id),
+            func.sum(InferenceLog.total_tokens),
+            func.avg(InferenceLog.latency_ms),
+            func.count(InferenceLog.id).filter(InferenceLog.status == "error")
+        )
+        result = await session.execute(stmt)
+        row = result.fetchone()
+        
+        total_requests = row[0] or 0
+        total_tokens = int(row[1]) if row[1] is not None else 0
+        avg_latency = float(row[2]) if row[2] is not None else 0.0
+        error_count = row[3] or 0
+        
+        success_rate = 100.0
+        if total_requests > 0:
+            success_rate = ((total_requests - error_count) / total_requests) * 100.0
+            
+        model_stmt = select(
+            InferenceLog.model,
+            func.count(InferenceLog.id),
+            func.avg(InferenceLog.latency_ms)
+        ).group_by(InferenceLog.model)
+        model_result = await session.execute(model_stmt)
+        model_stats = [
+            {
+                "model": r[0],
+                "count": r[1],
+                "avg_latency": float(r[2]) if r[2] is not None else 0.0
+            }
+            for r in model_result.fetchall()
+        ]
+        
+        logs_stmt = select(InferenceLog).order_by(InferenceLog.created_at.desc()).limit(20)
+        logs_result = await session.execute(logs_stmt)
+        recent_logs = logs_result.scalars().all()
+        
+        return {
+            "total_requests": total_requests,
+            "total_tokens": total_tokens,
+            "avg_latency_ms": round(avg_latency, 1),
+            "error_count": error_count,
+            "success_rate": round(success_rate, 1),
+            "model_stats": model_stats,
+            "recent_logs": [
+                {
+                    "id": str(log.id),
+                    "conversation_id": str(log.conversation_id) if log.conversation_id else None,
+                    "model": log.model,
+                    "status": log.status,
+                    "latency_ms": log.latency_ms,
+                    "prompt_tokens": log.prompt_tokens or 0,
+                    "completion_tokens": log.completion_tokens or 0,
+                    "total_tokens": log.total_tokens or 0,
+                    "error_message": log.error_message,
+                    "created_at": log.created_at.isoformat() if log.created_at else None
+                }
+                for log in recent_logs
+            ]
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch telemetry analytics: {str(e)}"
+        )
 
 # 3. Get single conversation detail along with messages list (uses selectin loading!)
 @router.get("/{id}", response_model=ConversationReadWithMessages)
