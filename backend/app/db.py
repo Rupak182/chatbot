@@ -2,10 +2,8 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from app.config import settings
 
-# Configure dynamic connection arguments (e.g. SSL for cloud Neon/Supabase, no SSL for localhost)
+# Configure connection arguments (handled natively via DATABASE_URL parameters if needed)
 connect_args = {}
-if "localhost" not in settings.DATABASE_URL and "127.0.0.1" not in settings.DATABASE_URL:
-    connect_args["ssl"] = True
 
 # Initialize high-performance async connection engine
 engine = create_async_engine(
