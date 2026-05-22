@@ -50,7 +50,6 @@ class Message(SQLModel, table=True):
     inference_logs: List["InferenceLog"] = Relationship(
         back_populates="message",
         sa_relationship_kwargs={
-            "cascade": "all, delete-orphan",
             "lazy": "selectin"  # Eagerly loads inference logs in a single query to prevent N+1 and async lazy-load crashes!
         }
     )
