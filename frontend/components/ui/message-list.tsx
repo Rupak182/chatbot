@@ -11,6 +11,7 @@ interface MessageListProps {
   messages: Message[]
   showTimeStamps?: boolean
   isTyping?: boolean
+  isGenerating?: boolean
   messageOptions?:
     | AdditionalMessageOptions
     | ((message: Message) => AdditionalMessageOptions)
@@ -20,6 +21,7 @@ export function MessageList({
   messages,
   showTimeStamps = true,
   isTyping = false,
+  isGenerating = false,
   messageOptions,
 }: MessageListProps) {
   return (
@@ -34,6 +36,8 @@ export function MessageList({
           <ChatMessage
             key={index}
             showTimeStamp={showTimeStamps}
+            isLast={index === messages.length - 1}
+            isGenerating={isGenerating}
             {...message}
             {...additionalOptions}
           />

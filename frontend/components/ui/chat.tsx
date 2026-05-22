@@ -206,6 +206,7 @@ export function Chat({
           <MessageList
             messages={messages}
             isTyping={isTyping}
+            isGenerating={isGenerating}
             messageOptions={messageOptions}
           />
         </ChatMessages>

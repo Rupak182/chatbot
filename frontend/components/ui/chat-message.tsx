@@ -136,6 +136,8 @@ export interface ChatMessageProps extends Message {
   showTimeStamp?: boolean
   animation?: Animation
   actions?: React.ReactNode
+  isLast?: boolean
+  isGenerating?: boolean
 }
 
 export const ChatMessage: React.FC<ChatMessageProps> = ({
@@ -148,6 +150,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   experimental_attachments,
   toolInvocations,
   parts,
+  isLast = false,
+  isGenerating = false,
 }) => {
   const files = useMemo(() => {
     return experimental_attachments?.map((attachment) => {
@@ -253,11 +257,18 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     <div className={cn("flex flex-col", isUser ? "items-end" : "items-start")}>
       <div className={cn(chatBubbleVariants({ isUser, animation }))}>
         {content === "" && !isUser ? (
-          <div className="flex items-center gap-1.5 py-1 px-1.5 min-h-[1.25rem]">
-            <span className="h-2 w-2 rounded-full bg-cyan-500 animate-bounce [animation-delay:-0.3s]" />
-            <span className="h-2 w-2 rounded-full bg-cyan-500 animate-bounce [animation-delay:-0.15s]" />
-            <span className="h-2 w-2 rounded-full bg-cyan-500 animate-bounce" />
-          </div>
+          isGenerating && isLast ? (
+            <div className="flex items-center gap-1.5 py-1 px-1.5 min-h-[1.25rem]">
+              <span className="h-2 w-2 rounded-full bg-cyan-500 animate-bounce [animation-delay:-0.3s]" />
+              <span className="h-2 w-2 rounded-full bg-cyan-500 animate-bounce [animation-delay:-0.15s]" />
+              <span className="h-2 w-2 rounded-full bg-cyan-500 animate-bounce" />
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 py-1 px-1.5 text-zinc-500  select-none">
+              <Ban className="h-4 w-4 text-zinc-500/80" />
+              <span>Response stopped.</span>
+            </div>
+          )
         ) : (
           <MarkdownRenderer>{content}</MarkdownRenderer>
         )}
