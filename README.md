@@ -1,6 +1,13 @@
 # Telemetry Chatbot Platform
 
-A lightweight, production-grade LLM inference logging and ingestion workspace built with a **FastAPI backend streaming proxy** and a **Next.js frontend**. The system features real-time, non-blocking telemetry (capturing model usage, token count, and full round-trip latencies) while maintaining stateful session management, PII redaction, conversation listing, cancellation, and resume capabilities.
+A lightweight, AI Chatbot ,LLM inference logging and ingestion workspace built with a **FastAPI backend streaming proxy** and a **Next.js frontend**. The system features real-time, non-blocking telemetry (capturing model usage, token count, and full round-trip latencies) while maintaining stateful session management, PII redaction, conversation listing, cancellation, and resume capabilities.
+
+
+<img width="1910" height="1077" alt="image" src="https://github.com/user-attachments/assets/aa3a89e2-7c56-4c20-8a6a-a0f0c7c2326b" />
+
+
+<img width="1910" height="1077" alt="image" src="https://github.com/user-attachments/assets/4c52396a-499c-4eca-9421-2d518730e3af" />
+
 
 ---
 
@@ -35,20 +42,8 @@ Once the logs show that all services are online and ready:
 
 The workspace uses a direct **FastAPI Streaming Proxy Architecture**. Next.js acts as a 100% static client, eliminating server-action hops and direct client-side logging SDK calls.
 
-```
-[Browser Client] 
-     │
-     ├── 1. Streaming Prompt (POST /api/v1/chat/stream) ─────────> [FastAPI Backend]
-     │                                                                   │
-     │                                                                   ├── 2. Proxy Stream (async) ──> [LiteLLM / upstream AI]
-     │<── 3. Streaming Response Chunks (SSE Plaintext) <─────────────────┤
-     │                                                                   │
-     │                                                                   └── 4. Offload Telemetry ─────> [Background task]
-     │                                                                                                        │
-     │                                                                                                   5. Write to DB
-     │                                                                                                        │
-     │<── 6. Refresh HUD Data (GET /api/v1/conversations/{id}/telemetry) <─ [PostgreSQL Database] <───────────┘
-```
+<img width="3275" height="1954" alt="mermaid-diagram-1779463816115" src="https://github.com/user-attachments/assets/02851cac-9a65-4939-8ccd-d61c94436b3d" />
+
 
 ### Key Technical Decisions:
 * **Decoupled Provider-Agnostic Routing**: The backend is 100% model-agnostic. The frontend select dropdown passes fully qualified provider paths directly to the backend (`gemini/gemini-2.5-flash-lite`, `groq/llama-3.3-70b-versatile`). The backend routes these straight to LiteLLM with zero string matching or hardcoding! This makes adding new LLMs fully plug-and-play.
