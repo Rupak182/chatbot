@@ -4,26 +4,22 @@ This document outlines the detailed architectural, schema, and implementation pl
 
 ---
 
-## 1. Architectural Overview (Core System)
+## 1. Architectural Overview (Direct FastAPI Streaming)
+
+By routing all streaming LLM calls directly through our **FastAPI backend**, we keep the Next.js frontend as a 100% pure static UI client, completely eliminating Next.js API Routes, Server Actions, and client-side logging SDK network hops.
 
 ```mermaid
 graph TD
     %% Frontend / Client side
-    subgraph Client ["Client / Frontend (Next.js 14)"]
-        ChatUI["Chat Interface (Multi-turn conversation)"]
-        VercelSDK["Vercel AI SDK (useChat Streaming)"]
-        NextAPI["Next.js Route Handlers (/api/chat)"]
-    end
-
-    %% SDK Wrapper
-    subgraph SDK ["Logging SDK / Middleware"]
-        TSWrapper["TS Logging SDK (Ingest Client)"]
+    subgraph Client ["Client / Frontend (Next.js 16)"]
+        ChatUI["Chat Interface (shadcn/ui + useChat)"]
     end
 
     %% Ingestion Pipeline
-    subgraph Backend ["Backend Ingestion & Core API (FastAPI)"]
-        IngestAPI["FastAPI Ingest API (/api/v1/ingest)"]
+    subgraph Backend ["Backend Stream & Core API (FastAPI)"]
+        StreamAPI["FastAPI Stream API (/api/v1/chat/stream)"]
         CoreAPI["FastAPI Core CRUD (/api/v1/conversations)"]
+        LogTask["Background Logger (Saves automatically on Stream end)"]
     end
 
     %% Storage
@@ -33,30 +29,27 @@ graph TD
     end
 
     %% Flow Arrows
-    ChatUI --> VercelSDK
-    VercelSDK --> NextAPI
-    NextAPI --> TSWrapper
-    TSWrapper -- "HTTP POST (Async Log)" --> IngestAPI
-    IngestAPI -- "SQLModel Async Insert" --> DB
+    ChatUI -- "useChat Streaming Request" --> StreamAPI
+    StreamAPI -- "Stream Proxy" --> ChatUI
+    StreamAPI -- "On Stream Resolve" --> LogTask
+    LogTask -- "SQLModel Async Insert" --> DB
     CoreAPI --> SQLM
     SQLM --> DB
-    ChatUI -- "Fetch History" --> CoreAPI
+    ChatUI -- "Fetch History & List" --> CoreAPI
 ```
 
 ### Components & Responsibilities
-1. **Frontend (Next.js 14+ App Router)**:
-   - **Chat Application**: Supports multi-turn chats, listing past conversations, resuming them, and canceling ongoing streams (using Vercel AI SDK and Tailwind v4).
-   - **Styling & UI (Tailwind v4 + shadcn/ui)**: Beautiful, responsive dark-theme design featuring glassmorphism and modern UI components. We will use the new **Tailwind v4 CSS-first theme directive (`@theme`)** in `globals.css` combined with shadcn/ui components (such as buttons, cards, avatars, and scroll areas), completely eliminating the legacy `tailwind.config.js` file for a ultra-modern React developer experience.
-2. **Logging SDK (TS & Python)**:
-   - **TS Logger**: Lightweight interceptor for Vercel AI SDK callbacks (`onStart`, `onCompletion`, `onFinal`) that measures actual latencies, handles streaming chunks, compiles metadata, and asynchronously posts logs to the backend.
-   - **Python SDK**: A clean, decorator-based wrapper (`@log_inference`) that wraps standard LLM client calls (OpenAI, Gemini), capturing provider, model, input/output tokens, latency, status, and sending it to the FastAPI endpoint.
-3. **Ingestion Pipeline (FastAPI)**:
-   - **Ingest API**: Fast, validation-first endpoint (`/api/v1/ingest`) that verifies token signatures, validates schemas using SQLModel, and pushes logs onto a Redis list (`inference_logs_queue`) in milliseconds, returning an immediate `202 Accepted`.
-   - **Event-Driven Ingestion Worker**: A separate, concurrent worker process (or async python task manager) that reads from the Redis queue, runs the PII Redaction engine on the prompts and completions, and stores them in PostgreSQL.
-4. **PII Redaction Engine**:
-   - Parses text fields (prompts, responses) for common PII categories (Emails, Phone Numbers, Credit Cards, SSNs, API Keys, IPv4/v6) and redacts them with generic placeholders (e.g. `[REDACTED_EMAIL]`) prior to storage.
-5. **Database (PostgreSQL)**:
-   - Relational schema optimized for fast analytical query throughput and clean storage of multi-turn chat dialogues.
+1. **Frontend (Next.js 16 App Router)**:
+   - **Chat Application**: A beautiful static UI styled with **Tailwind v4 + shadcn/ui**. It uses the Vercel AI SDK's client hooks (`useChat`) directed directly to the FastAPI backend.
+   - **ChatGPT-Style URL Transition**: When starting a new session, Next.js calls `POST /api/v1/conversations` on the very first prompt. It instantly redirects the user's browser to `/chat/[new-uuid]`, updates the sidebar list in real time, and fires the active stream using the newly generated session UUID.
+2. **FastAPI Backend (FastAPI + SQLModel + liteLLM)**:
+   - **Stream Proxy Endpoint (`/api/v1/chat/stream`)**: Receives the streaming request and:
+     1. **Automatically saves the incoming User Message** to the PostgreSQL database.
+     2. Proxies the stream from the selected provider (Gemini, OpenAI, etc.) using **`liteLLM`**, yielding **raw plain-text chunks** (UTF-8) directly back to Next.js for zero-config `useChat` consumption.
+     3. On stream completion, spawns a **FastAPI `BackgroundTask`** to automatically save the completed Assistant Message, compile exact token counts and latency, and write the Inference Log (fully linked with proper foreign keys) in the background.
+   - **Core CRUD & Logging (`/api/v1/conversations`)**: Manages conversational history, session creations, conversation lists, and messages mapped via **SQLModel**.
+3. **Database (PostgreSQL)**:
+   - Relational schema mapped via **SQLModel** containing `conversations`, `messages`, and `inference_logs` tables.
 
 ---
 
@@ -100,6 +93,7 @@ CREATE TABLE inference_logs (
     prompt_tokens INTEGER,
     completion_tokens INTEGER,
     total_tokens INTEGER,
+    cost_usd DECIMAL(10, 6) NOT NULL DEFAULT 0.000000, -- Real-time cost calculation
     error_message TEXT,
     ip_address VARCHAR(45),
     request_timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -147,6 +141,7 @@ Every log sent to the ingestion endpoint adheres to this format:
   "latency_ms": 1280,
   "prompt_tokens": 150,
   "completion_tokens": 230,
+  "cost_usd": 0.000081,
   "prompt_preview": "Hello, can you help me write an ingestion system?",
   "completion_preview": "Yes! An ingestion system requires a fast endpoint...",
   "error_message": null,
@@ -183,9 +178,6 @@ ollive/
 │   ├── worker/
 │   │   ├── __init__.py
 │   │   └── ingest_worker.py # High-performance async queue worker
-│   └── sdk/                 # Python Client SDK/Wrapper
-│       ├── __init__.py
-│       └── logger.py        # @log_inference decorator
 └── frontend/                # Next.js Web App
     ├── Dockerfile
     ├── package.json
@@ -201,8 +193,6 @@ ollive/
     │   │   ├── Sidebar.tsx
     │   │   ├── ChatWindow.tsx
     │   │   └── AnalyticsDashboard.tsx
-    │   └── utils/
-    │       └── sdk_logger.ts # Next.js lightweight TS logging SDK
 ```
 
 ## 6. Industry Best Practices & Timing Considerations
@@ -236,13 +226,12 @@ To respect timing constraints and ensure we deliver a rock-solid, working system
    - Define SQLModel structures in `app/models.py`.
    - Write CRUD routes for creating/resuming conversations.
    - Implement the direct Ingestion endpoint (`/api/v1/ingest`) that immediately validates and stores logs in Postgres.
-2. **Step 2: Frontend Chat & Vercel AI SDK (Next.js)**
-   - Initialize Next.js app in `/frontend`.
-   - Implement multi-turn chat page using the Vercel AI SDK.
-   - Configure model provider selection (Gemini fallback mode).
-3. **Step 3: Lightweight SDK / Logging Wrapper**
-   - Write the TS middleware inside Next.js to log API streaming speed, input/output text previews, status, and tokens.
-   - Verify that the chat flow writes beautifully to the Postgres database in real time.
+2. **Step 2: Frontend Chat & Vercel AI SDK (Next.js 16)**
+   - Initialize Next.js 16 app in `/frontend`.
+   - Implement the gorgeous dark-mode chatbot interface using shadcn/ui.
+3. **Step 3: End-to-End Stream Integration & Logging Validation**
+   - Connect Vercel AI SDK's `useChat` hook to point directly to FastAPI's `/api/v1/chat/stream`.
+   - Verify that streaming chunks render smoothly in the browser and that the user/assistant messages and inference logs are successfully persisted to PostgreSQL in the background.
 
 ### Phase 2: The Bonus Features (Layer Second)
 1. **Step 4: Queue Architecture (Redis Broker + Worker)**
@@ -257,9 +246,9 @@ To respect timing constraints and ensure we deliver a rock-solid, working system
 
 ---
 
-## 8. Why Next.js Route Handlers Instead of Server Actions
+## 8. Why Direct FastAPI Streaming is Architecturally Superior
 
-For a lightweight inference-logging chatbot, Next.js **Route Handlers** (REST endpoints like `app/api/chat/route.ts`) are highly superior to Server Actions:
-1. **Full Vercel AI SDK Compatibility**: Vercel AI SDK's streaming hooks (like `useChat`) natively integrate with standard browser fetch streams returned by API Route Handlers.
-2. **Simpler Latency Wrapping**: It is much cleaner to place our TypeScript logging SDK wrapper around standard Route Handlers because we can easily measure the time between the incoming request and the final stream chunk resolution.
-3. **Better Testing / Isolation**: API routes can be independently tested with simple tools like curl or Postman, making the initial core debugged and functional within minutes.
+By completely bypassing Next.js API Route Handlers and Server Actions, and streaming directly from FastAPI to the browser:
+1. **Zero Next.js API Footprint**: The Next.js frontend builds into static HTML/JS assets that can be distributed instantly via CDN (like Vercel Edge). There are no server-side Node.js routes running key-loading, network proxying, or session management.
+2. **Eliminated Network Hop**: Instead of the browser calling Next.js and Next.js calling FastAPI (2 separate HTTP request/response loops), the browser speaks directly to FastAPI. This shaves off 50ms-150ms of network latency for every chat message.
+3. **Internalized Server-Side Security**: Model secrets, rate limits, database writes, and background logging tasks are completely contained inside our Python FastAPI microservice. The client browser has no way to tamper with logs or access upstream model endpoints directly.
