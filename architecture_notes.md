@@ -20,7 +20,8 @@ The platform utilizes a **fully non-blocking background ingestion design** to gu
 
 ## 2. In-Memory Logging & Tokenization Strategy
 
-* **Local Tokenization**: The background task calculates prompt and completion tokens locally using LiteLLM's local tokenizer (`litellm.token_counter`), which leverages offline libraries like `tiktoken`. This avoids secondary network calls to remote tokenizers.
+* **In-Memory Accumulation (RAM Buffer)**: Instead of executing active database write transactions for every streamed chunk (which would overwhelm PostgreSQL under high concurrent user load), the backend buffers and accumulates the text in the server's high-speed RAM (`assistant_response_content += content`) as the chunks arrive. The system executes exactly **one single, atomic SQL write** only after the stream terminates.
+* **Offline Local Tokenization**: Rather than wasting network latency and incurring costs making secondary remote API roundtrips to count tokens, the backend processes token counts locally in-memory using LiteLLM's offline tokenizer library (`litellm.token_counter`), leveraging high-speed `tiktoken` byte-pair encodings. This math takes `<1ms` and requires **zero network overhead**.
 * **PII Redaction Pipeline**: All textual content passes through a high-performance compiled regular-expression processor (`redact_pii()`) at the ingestion layer. This automatically scrubs API keys, emails, phone numbers, and credentials before they touch the database.
 * **Separation of Concerns**: Conversations, message texts (PII), and inference logs are stored in separate SQLModel tables. When a conversation is deleted, messages are purged (complying with user privacy mandates) while inference logs are retained by setting `message_id` to `NULL` (`ondelete="SET NULL"`), preserving historical telemetry analytics.
 
