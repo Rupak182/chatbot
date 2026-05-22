@@ -122,10 +122,7 @@ async def chat_stream(
     background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_session)
 ):
-    # 1. Format Model name (auto-prepend gemini/ for developer API key routing)
     model_name = payload.model
-    if model_name.startswith("gemini-") and not model_name.startswith("gemini/"):
-        model_name = f"gemini/{model_name}"
 
     # 2. Fetch or auto-initialize the Conversation to prevent foreign key violation crashes!
     statement = select(Conversation).where(Conversation.id == payload.conversation_id)
