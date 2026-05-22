@@ -148,6 +148,11 @@ async def get_conversation(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Conversation not found"
         )
+    
+    # Chronologically sort messages by created_at to prevent out-of-order/flipped visual chat bubbles!
+    if db_conv.messages:
+        db_conv.messages.sort(key=lambda m: m.created_at)
+
     return db_conv
 
 

@@ -22,6 +22,7 @@ if settings.GEMINI_API_KEY:
 
 from app.db import get_session, async_session
 from app.models import Conversation, Message, InferenceLog
+from app.utils.pii import redact_pii
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -69,7 +70,7 @@ async def save_stream_results(
             assistant_message = Message(
                 conversation_id=conversation_id,
                 role="assistant",
-                content=assistant_text,
+                content=redact_pii(assistant_text),
                 tokens=completion_tokens
             )
             session.add(assistant_message)
@@ -134,10 +135,11 @@ async def chat_stream(
 
     # 3. Extract the User's prompt to name the conversation dynamically
     user_prompt = payload.messages[-1].content
+    redacted_title_base = redact_pii(user_prompt)
+    conv_title = redacted_title_base[:15] + "..." if len(redacted_title_base) > 15 else redacted_title_base
 
     if not db_conv:
         # Auto-create conversation with the client's generated UUID and dynamic title
-        conv_title = user_prompt[:15] + "..." if len(user_prompt) > 15 else user_prompt
         db_conv = Conversation(
             id=payload.conversation_id,
             title=conv_title,
@@ -149,14 +151,14 @@ async def chat_stream(
     else:
         # If the conversation is currently named "New Conversation", rename it to the user's first prompt slice!
         if db_conv.title == "New Conversation":
-            db_conv.title = user_prompt[:15] + "..." if len(user_prompt) > 15 else user_prompt
+            db_conv.title = conv_title
         db_conv.updated_at = now_naive
         session.add(db_conv)
 
     user_message = Message(
         conversation_id=payload.conversation_id,
         role="user",
-        content=user_prompt
+        content=redact_pii(user_prompt)
     )
     session.add(user_message)
     
