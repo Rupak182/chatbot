@@ -32,6 +32,7 @@ export default function Home() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [activeTelemetry, setActiveTelemetry] = useState<Telemetry | null>(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<string>('gemini/gemini-2.5-flash-lite');
   
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -81,7 +82,7 @@ export default function Home() {
       const res = await fetch(`${BACKEND_URL}/api/v1/conversations/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'gemini-2.5-flash' })
+        body: JSON.stringify({ model: selectedModel })
       });
       if (res.ok) {
         const data = await res.json();
@@ -105,6 +106,9 @@ export default function Home() {
       const res = await fetch(`${BACKEND_URL}/api/v1/conversations/${id}`);
       if (res.ok) {
         const data = await res.json();
+        if (data.model) {
+          setSelectedModel(data.model);
+        }
         const formattedMessages = (data.messages || []).map((m: any) => ({
           id: m.id,
           role: m.role,
@@ -157,7 +161,7 @@ export default function Home() {
       const tempConv: Conversation = {
         id: activeId,
         title: promptText.slice(0, 15) + (promptText.length > 15 ? '...' : ''),
-        model: 'gemini-2.5-flash-lite',
+        model: selectedModel,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
@@ -210,7 +214,7 @@ export default function Home() {
         body: JSON.stringify({
           conversation_id: activeId,
           messages: updatedMessages.map((m) => ({ role: m.role, content: m.content })),
-          model: 'gemini-2.5-flash-lite'
+          model: selectedModel
         })
       });
 
@@ -339,6 +343,8 @@ export default function Home() {
         <TelemetryHUD
           currentConversationId={currentConversationId}
           activeTelemetry={activeTelemetry}
+          selectedModel={selectedModel}
+          onModelChange={setSelectedModel}
         />
 
         {/* Premium Shadcn Chatbot Kit Workspace Component */}

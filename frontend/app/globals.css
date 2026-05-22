@@ -128,3 +128,28 @@
     @apply font-sans;
   }
 }
+
+/* Premium Dark Workspace Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(39, 39, 42, 0.7); /* Zinc-800 translucent */
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(63, 63, 70, 0.9); /* Zinc-700 */
+}
+
+/* Firefox Support */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(39, 39, 42, 0.7) transparent;
+}
