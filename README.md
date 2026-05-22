@@ -1,4 +1,4 @@
-# Ollive High-Performance Telemetry Chatbot Platform
+# Telemetry Chatbot Platform
 
 A lightweight, production-grade LLM inference logging and ingestion workspace built with a **FastAPI backend streaming proxy** and a **Next.js frontend**. The system features real-time, non-blocking telemetry (capturing model usage, token count, and full round-trip latencies) while maintaining stateful session management, PII redaction, conversation listing, cancellation, and resume capabilities.
 
